@@ -1,0 +1,494 @@
+use game::world;
+use game::player;
+use game::combat;
+use game::quests;
+use std::io::{input, inputLine};
+use std::time::{sleep};
+
+entry main() {
+    displayWelcome();
+    
+    string name = input("Введите имя вашего героя: ");
+    player::Player mut hero = player::Player(name);
+    
+    world::GameWorld mut gameWorld = world::GameWorld();
+    quests::QuestManager mut questManager = quests::QuestManager();
+    
+    questManager.initializeQuests();
+    gameWorld.initializeLocations();
+    
+    bool mut gameRunning = true;
+    
+    while gameRunning {
+        displayMainMenu();
+        string choice = inputLine();
+        
+        option choice {
+            "1" -> {
+                exploreWorld(&mut hero, &mut gameWorld, &mut questManager);
+            },
+            "2" -> {
+                displayCharacterInfo(&hero);
+            },
+            "3" -> {
+                manageInventory(&mut hero);
+            },
+            "4" -> {
+                displayQuests(&questManager);
+            },
+            "5" -> {
+                visitShop(&mut hero);
+            },
+            "6" -> {
+                restAtInn(&mut hero);
+            },
+            "7" -> {
+                outln("\nСпасибо за игру! До встречи, " + hero.name + "!");
+                gameRunning = false;
+            },
+            _ -> {
+                outln("\nНеверный выбор. Попробуйте снова.");
+            }
+        }
+        
+        if gameRunning and not hero.isAlive() {
+            outln("\n=== GAME OVER ===");
+            outln("Ваш герой погиб в бою...");
+            gameRunning = false;
+        }
+    }
+}
+
+local displayWelcome() -> void {
+    outln("╔════════════════════════════════════════╗");
+    outln("║   ДОБРО ПОЖАЛОВАТЬ В RUNIC QUEST RPG   ║");
+    outln("╚════════════════════════════════════════╝");
+    outln("");
+}
+
+local displayMainMenu() -> void {
+    outln("\n╔════════════════════════════════════════╗");
+    outln("║            ГЛАВНОЕ МЕНЮ                ║");
+    outln("╠════════════════════════════════════════╣");
+    outln("║ 1. Исследовать мир                     ║");
+    outln("║ 2. Информация о персонаже              ║");
+    outln("║ 3. Инвентарь                           ║");
+    outln("║ 4. Квесты                              ║");
+    outln("║ 5. Магазин                             ║");
+    outln("║ 6. Отдохнуть в таверне                 ║");
+    outln("║ 7. Выход                               ║");
+    outln("╚════════════════════════════════════════╝");
+    out("Выберите действие: ");
+}
+
+local exploreWorld(hero: &mut player::Player, world: &mut world::GameWorld, questMgr: &mut quests::QuestManager) -> void {
+    list<world::Location> locations = world.getAvailableLocations(hero.level);
+    
+    if len(locations) == 0 {
+        outln("\nНет доступных локаций для вашего уровня.");
+        return;
+    }
+    
+    outln("\n=== ДОСТУПНЫЕ ЛОКАЦИИ ===");
+    for (index, loc) in locations {
+        outln("#[index + 1]. #[loc.name] (Уровень: #[loc.recommendedLevel])");
+        outln("   #[loc.description]");
+    }
+    
+    out("\nВыберите локацию (0 - назад): ");
+    string choice = inputLine();
+    
+    if choice == "0" {
+        return;
+    }
+    
+    num? locIndex = choice.toNum();
+    if locIndex == void or locIndex < 1 or locIndex > len(locations) {
+        outln("Неверный выбор.");
+        return;
+    }
+    
+    world::Location selectedLoc = locations[locIndex - 1];
+    exploreLocation(hero, selectedLoc, questMgr);
+}
+
+local exploreLocation(hero: &mut player::Player, location: world::Location, questMgr: &mut quests::QuestManager) -> void {
+    outln("\n=== " + location.name + " ===");
+    outln(location.description);
+    sleep(1);
+    
+    num eventRoll = randomInt(1, 100);
+    
+    if eventRoll <= 60 {
+        startCombat(hero, location, questMgr);
+    } elif eventRoll <= 80 {
+        findTreasure(hero, location);
+    } else {
+        outln("\nВы исследуете местность, но ничего интересного не находите.");
+    }
+}
+
+local startCombat(hero: &mut player::Player, location: world::Location, questMgr: &mut quests::QuestManager) -> void {
+    combat::Enemy mut enemy = combat::Enemy::generate(location.recommendedLevel);
+    
+    outln("\n⚔️  НАЧАЛСЯ БОЙ!");
+    outln("Вы встретили: " + enemy.name);
+    sleep(1);
+    
+    bool mut combatActive = true;
+    
+    while combatActive and hero.isAlive() and enemy.isAlive() {
+        displayCombatStatus(hero, &enemy);
+        
+        outln("\n1. Атаковать");
+        outln("2. Использовать зелье");
+        outln("3. Попытаться сбежать");
+        out("Выберите действие: ");
+        
+        string action = inputLine();
+        
+        option action {
+            "1" -> {
+                playerAttack(hero, &mut enemy);
+                if enemy.isAlive() {
+                    enemyAttack(&mut enemy, hero);
+                }
+            },
+            "2" -> {
+                if usePotion(hero) {
+                    enemyAttack(&mut enemy, hero);
+                } else {
+                    outln("У вас нет зелий!");
+                }
+            },
+            "3" -> {
+                if attemptFlee() {
+                    outln("\nВам удалось сбежать!");
+                    combatActive = false;
+                } else {
+                    outln("\nСбежать не удалось!");
+                    enemyAttack(&mut enemy, hero);
+                }
+            },
+            _ -> {
+                outln("Неверное действие!");
+            }
+        }
+        
+        if not enemy.isAlive() {
+            onVictory(hero, &enemy, questMgr);
+            combatActive = false;
+        }
+    }
+}
+
+local displayCombatStatus(hero: &player::Player, enemy: &combat::Enemy) -> void {
+    outln("\n┌─────────────────────────────────────┐");
+    outln("│ " + hero.name + " HP: #[hero.health]/#[hero.maxHealth] | MP: #[hero.mana]/#[hero.maxMana]");
+    outln("│ " + enemy.name + " HP: #[enemy.health]/#[enemy.maxHealth]");
+    outln("└─────────────────────────────────────┘");
+}
+
+local playerAttack(hero: &mut player::Player, enemy: &mut combat::Enemy) -> void {
+    num damage = hero.calculateDamage();
+    enemy.takeDamage(damage);
+    outln("\n⚔️  Вы атакуете " + enemy.name + " и наносите #[damage] урона!");
+    sleep(1);
+}
+
+local enemyAttack(enemy: &mut combat::Enemy, hero: &mut player::Player) -> void {
+    num damage = enemy.calculateDamage();
+    hero.takeDamage(damage);
+    outln("💀 " + enemy.name + " атакует и наносит вам #[damage] урона!");
+    sleep(1);
+}
+
+local usePotion(hero: &mut player::Player) -> bool {
+    list<player::Item> potions = hero.inventory.getItemsByType(player::ItemType::Potion);
+    
+    if len(potions) == 0 {
+        return false;
+    }
+    
+    player::Item potion = potions[0];
+    hero.useItem(potion);
+    return true;
+}
+
+local attemptFlee() -> bool {
+    num roll = randomInt(1, 100);
+    return roll > 50;
+}
+
+local onVictory(hero: &mut player::Player, enemy: &combat::Enemy, questMgr: &mut quests::QuestManager) -> void {
+    outln("\n🎉 ПОБЕДА!");
+    
+    num expGained = enemy.expReward;
+    num goldGained = enemy.goldReward;
+    
+    hero.gainExperience(expGained);
+    hero.gold += goldGained;
+    
+    outln("Получено: #[expGained] опыта, #[goldGained] золота");
+    
+    questMgr.updateKillQuests(enemy.type, 1);
+    
+    if randomInt(1, 100) > 60 {
+        player::Item loot = generateLoot(enemy.level);
+        hero.inventory.addItem(loot);
+        outln("Найден предмет: " + loot.name);
+    }
+    
+    sleep(2);
+}
+
+local generateLoot(level: num) -> player::Item {
+    num roll = randomInt(1, 100);
+    
+    if roll <= 40 {
+        return player::Item("Малое зелье лечения", player::ItemType::Potion, level * 5 + 10, 50);
+    } elif roll <= 70 {
+        return player::Item("Старый меч", player::ItemType::Weapon, level * 10 + 20, level * 3 + 5);
+    } else {
+        return player::Item("Кожаная броня", player::ItemType::Armor, level * 8 + 15, level * 2 + 3);
+    }
+}
+
+local findTreasure(hero: &mut player::Player, location: world::Location) -> void {
+    outln("\n💎 Вы нашли сокровище!");
+    
+    num goldFound = randomInt(location.recommendedLevel * 10, location.recommendedLevel * 30);
+    hero.gold += goldFound;
+    
+    outln("Получено: #[goldFound] золота");
+    
+    if randomInt(1, 100) > 70 {
+        player::Item treasure = generateLoot(location.recommendedLevel);
+        hero.inventory.addItem(treasure);
+        outln("Также найден: " + treasure.name);
+    }
+    
+    sleep(2);
+}
+
+local displayCharacterInfo(hero: &player::Player) -> void {
+    outln("\n╔════════════════════════════════════════╗");
+    outln("║      ИНФОРМАЦИЯ О ПЕРСОНАЖЕ            ║");
+    outln("╠════════════════════════════════════════╣");
+    outln("║ Имя: " + hero.name);
+    outln("║ Уровень: #[hero.level]");
+    outln("║ Опыт: #[hero.experience]/#[hero.experienceToNextLevel]");
+    outln("║ HP: #[hero.health]/#[hero.maxHealth]");
+    outln("║ MP: #[hero.mana]/#[hero.maxMana]");
+    outln("║ Золото: #[hero.gold]");
+    outln("║ ────────────────────────────");
+    outln("║ Атака: #[hero.attack]");
+    outln("║ Защита: #[hero.defense]");
+    outln("║ Магия: #[hero.magic]");
+    outln("╚════════════════════════════════════════╝");
+    
+    out("\nНажмите Enter для продолжения...");
+    inputLine();
+}
+
+local manageInventory(hero: &mut player::Player) -> void {
+    bool mut inInventory = true;
+    
+    while inInventory {
+        outln("\n╔════════════════════════════════════════╗");
+        outln("║            ИНВЕНТАРЬ                   ║");
+        outln("╠════════════════════════════════════════╣");
+        outln("║ Золото: #[hero.gold]");
+        outln("║ Предметов: #[hero.inventory.getSize()]/#[hero.inventory.capacity]");
+        outln("╚════════════════════════════════════════╝");
+        
+        list<player::Item> items = hero.inventory.getAllItems();
+        
+        if len(items) == 0 {
+            outln("\nИнвентарь пуст.");
+            return;
+        }
+        
+        outln("\nПредметы:");
+        for (index, item) in items {
+            string typeStr = itemTypeToString(item.type);
+            outln("#[index + 1]. #[item.name] (#[typeStr]) - Ценность: #[item.value]");
+        }
+        
+        outln("\n1. Использовать предмет");
+        outln("2. Экипировать предмет");
+        outln("3. Продать предмет");
+        outln("0. Назад");
+        
+        out("Выберите действие: ");
+        string choice = inputLine();
+        
+        option choice {
+            "1" -> useItemFromInventory(hero, items),
+            "2" -> equipItem(hero, items),
+            "3" -> sellItem(hero, items),
+            "0" -> inInventory = false,
+            _ -> outln("Неверный выбор.")
+        }
+    }
+}
+
+local useItemFromInventory(hero: &mut player::Player, items: list<player::Item>) -> void {
+    out("Выберите номер предмета: ");
+    string itemChoice = inputLine();
+    
+    num? itemIndex = itemChoice.toNum();
+    if itemIndex == void or itemIndex < 1 or itemIndex > len(items) {
+        outln("Неверный номер предмета.");
+        return;
+    }
+    
+    player::Item selectedItem = items[itemIndex - 1];
+    hero.useItem(selectedItem);
+}
+
+local equipItem(hero: &mut player::Player, items: list<player::Item>) -> void {
+    out("Выберите номер предмета: ");
+    string itemChoice = inputLine();
+    
+    num? itemIndex = itemChoice.toNum();
+    if itemIndex == void or itemIndex < 1 or itemIndex > len(items) {
+        outln("Неверный номер предмета.");
+        return;
+    }
+    
+    player::Item selectedItem = items[itemIndex - 1];
+    hero.equipItem(selectedItem);
+}
+
+local sellItem(hero: &mut player::Player, items: list<player::Item>) -> void {
+    out("Выберите номер предмета: ");
+    string itemChoice = inputLine();
+    
+    num? itemIndex = itemChoice.toNum();
+    if itemIndex == void or itemIndex < 1 or itemIndex > len(items) {
+        outln("Неверный номер предмета.");
+        return;
+    }
+    
+    player::Item selectedItem = items[itemIndex - 1];
+    num sellPrice = selectedItem.value / 2;
+    
+    hero.inventory.removeItem(selectedItem);
+    hero.gold += sellPrice;
+    
+    outln("Предмет продан за #[sellPrice] золота.");
+}
+
+local itemTypeToString(type: player::ItemType) -> string {
+    return match type {
+        player::ItemType::Weapon -> "Оружие",
+        player::ItemType::Armor -> "Броня",
+        player::ItemType::Potion -> "Зелье",
+        player::ItemType::Misc -> "Разное"
+    };
+}
+
+local displayQuests(questMgr: &quests::QuestManager) -> void {
+    outln("\n╔════════════════════════════════════════╗");
+    outln("║              КВЕСТЫ                    ║");
+    outln("╚════════════════════════════════════════╝");
+    
+    list<quests::Quest> activeQuests = questMgr.getActiveQuests();
+    
+    if len(activeQuests) == 0 {
+        outln("\nУ вас нет активных квестов.");
+    } else {
+        outln("\nАктивные квесты:");
+        for quest in activeQuests {
+            string progressStr = quest.getProgressString();
+            outln("• " + quest.name + " - " + progressStr);
+            outln("  Награда: #[quest.goldReward] золота, #[quest.expReward] опыта");
+        }
+    }
+    
+    list<quests::Quest> completedQuests = questMgr.getCompletedQuests();
+    if len(completedQuests) > 0 {
+        outln("\nЗавершенные квесты: #[len(completedQuests)]");
+    }
+    
+    out("\nНажмите Enter для продолжения...");
+    inputLine();
+}
+
+local visitShop(hero: &mut player::Player) -> void {
+    outln("\n╔════════════════════════════════════════╗");
+    outln("║            МАГАЗИН                     ║");
+    outln("╠════════════════════════════════════════╣");
+    outln("║ Ваше золото: #[hero.gold]");
+    outln("╚════════════════════════════════════════╝");
+    
+    list<player::Item> shopItems = [
+        player::Item("Малое зелье лечения", player::ItemType::Potion, 50, 50),
+        player::Item("Среднее зелье лечения", player::ItemType::Potion, 100, 100),
+        player::Item("Большое зелье лечения", player::ItemType::Potion, 200, 150),
+        player::Item("Стальной меч", player::ItemType::Weapon, 500, 15),
+        player::Item("Кольчуга", player::ItemType::Armor, 400, 10)
+    ];
+    
+    outln("\nТовары:");
+    for (index, item) in shopItems {
+        outln("#[index + 1]. #[item.name] - #[item.value] золота");
+    }
+    
+    out("\nВыберите товар (0 - выход): ");
+    string choice = inputLine();
+    
+    if choice == "0" {
+        return;
+    }
+    
+    num? itemIndex = choice.toNum();
+    if itemIndex == void or itemIndex < 1 or itemIndex > len(shopItems) {
+        outln("Неверный выбор.");
+        return;
+    }
+    
+    player::Item selectedItem = shopItems[itemIndex - 1];
+    
+    if hero.gold >= selectedItem.value {
+        hero.gold -= selectedItem.value;
+        hero.inventory.addItem(selectedItem);
+        outln("Куплено: " + selectedItem.name);
+    } else {
+        outln("Недостаточно золота!");
+    }
+}
+
+local restAtInn(hero: &mut player::Player) -> void {
+    num innCost = 50;
+    
+    outln("\n╔════════════════════════════════════════╗");
+    outln("║            ТАВЕРНА                     ║");
+    outln("╠════════════════════════════════════════╣");
+    outln("║ Стоимость отдыха: #[innCost] золота");
+    outln("║ Ваше золото: #[hero.gold]");
+    outln("╚════════════════════════════════════════╝");
+    
+    if hero.gold >= innCost {
+        out("\nОтдохнуть? (y/n): ");
+        string choice = inputLine();
+        
+        if choice == "y" {
+            hero.gold -= innCost;
+            hero.rest();
+            outln("\nВы хорошо отдохнули. Здоровье и мана восстановлены!");
+            sleep(2);
+        }
+    } else {
+        outln("\nУ вас недостаточно золота для отдыха.");
+    }
+}
+
+local randomInt(min: num, max: num) -> num {
+    return min + (randomNumber() % (max - min + 1));
+}
+
+local randomNumber() -> num {
+    return 42;
+}
