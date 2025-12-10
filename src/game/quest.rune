@@ -1,0 +1,384 @@
+enum QuestType {
+    Kill,
+    Collect,
+    Explore,
+    Escort,
+    Deliver
+}
+
+enum QuestStatus {
+    NotStarted,
+    Active,
+    Completed,
+    Failed
+}
+
+class Quest {
+    public id: num;
+    public name: string;
+    public description: string;
+    public type: QuestType;
+    public status: QuestStatus;
+    
+    public targetCount: num;
+    public currentCount: num;
+    
+    public goldReward: num;
+    public expReward: num;
+    public requiredLevel: num;
+    
+    init(id: num, name: string, description: string, type: QuestType, targetCount: num, goldReward: num, expReward: num, requiredLevel: num) {
+        self.id = id;
+        self.name = name;
+        self.description = description;
+        self.type = type;
+        self.status = QuestStatus::NotStarted;
+        self.targetCount = targetCount;
+        self.currentCount = 0;
+        self.goldReward = goldReward;
+        self.expReward = expReward;
+        self.requiredLevel = requiredLevel;
+    }
+    
+    public start() -> void {
+        if self.status == QuestStatus::NotStarted {
+            self.status = QuestStatus::Active;
+            outln("Квест начат: " + self.name);
+        }
+    }
+    
+    public updateProgress(amount: num) -> void {
+        if self.status == QuestStatus::Active {
+            self.currentCount += amount;
+            
+            if self.currentCount >= self.targetCount {
+                self.complete();
+            }
+        }
+    }
+    
+    public complete() -> void {
+        if self.status == QuestStatus::Active {
+            self.status = QuestStatus::Completed;
+            outln("✨ Квест завершен: " + self.name);
+            outln("Награда: #[self.goldReward] золота, #[self.expReward] опыта");
+        }
+    }
+    
+    public fail() -> void {
+        if self.status == QuestStatus::Active {
+            self.status = QuestStatus::Failed;
+            outln("Квест провален: " + self.name);
+        }
+    }
+    
+    public isCompleted() -> bool {
+        return self.status == QuestStatus::Completed;
+    }
+    
+    public isActive() -> bool {
+        return self.status == QuestStatus::Active;
+    }
+    
+    public getProgressString() -> string {
+        return "#[self.currentCount]/#[self.targetCount]";
+    }
+}
+
+class QuestManager {
+    private quests: list<Quest>;
+    private nextQuestId: num;
+    
+    init() {
+        self.quests = [];
+        self.nextQuestId = 1;
+    }
+    
+    public initializeQuests() -> void {
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Охота на гоблинов",
+            "Убейте 5 гоблинов в Темном Лесу.",
+            QuestType::Kill,
+            5,
+            100,
+            150,
+            1
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Очистка шахты",
+            "Уничтожьте 10 врагов в Заброшенной Шахте.",
+            QuestType::Kill,
+            10,
+            250,
+            300,
+            2
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Исследователь руин",
+            "Исследуйте Руины Древних.",
+            QuestType::Explore,
+            1,
+            200,
+            250,
+            3
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Истребление орков",
+            "Убейте 15 орков в их логове.",
+            QuestType::Kill,
+            15,
+            400,
+            500,
+            4
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Болотная угроза",
+            "Очистите Туманные Болота от чудовищ.",
+            QuestType::Kill,
+            20,
+            600,
+            700,
+            5
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Нежить в подземелье",
+            "Уничтожьте нежить в Забытом Подземелье.",
+            QuestType::Kill,
+            25,
+            800,
+            1000,
+            6
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Убийца драконов",
+            "Победите дракона на Пике Драконов.",
+            QuestType::Kill,
+            1,
+            2000,
+            2500,
+            8
+        ));
+        
+        self.addQuest(Quest(
+            self.getNextId(),
+            "Проклятие замка",
+            "Освободите Проклятый Замок от тьмы.",
+            QuestType::Kill,
+            30,
+            1500,
+            2000,
+            10
+        ));
+        
+        for quest in self.quests {
+            quest.start();
+        }
+    }
+    
+    private addQuest(quest: Quest) -> void {
+        self.quests << quest;
+    }
+    
+    private getNextId() -> num {
+        num id = self.nextQuestId;
+        self.nextQuestId += 1;
+        return id;
+    }
+    
+    public getQuestById(id: num) -> Quest? {
+        for quest in self.quests {
+            if quest.id == id {
+                return quest;
+            }
+        }
+        return void;
+    }
+    
+    public getActiveQuests() -> list<Quest> {
+        list<Quest> mut active = [];
+        for quest in self.quests {
+            if quest.isActive() {
+                active << quest;
+            }
+        }
+        return active;
+    }
+    
+    public getCompletedQuests() -> list<Quest> {
+        list<Quest> mut completed = [];
+        for quest in self.quests {
+            if quest.isCompleted() {
+                completed << quest;
+            }
+        }
+        return completed;
+    }
+    
+    public updateKillQuests(enemyType: combat::EnemyType, count: num) -> void {
+        for quest in self.quests {
+            if quest.type == QuestType::Kill and quest.isActive() {
+                quest.updateProgress(count);
+            }
+        }
+    }
+    
+    public updateExploreQuests(locationName: string) -> void {
+        for quest in self.quests {
+            if quest.type == QuestType::Explore and quest.isActive() {
+                quest.updateProgress(1);
+            }
+        }
+    }
+    
+    public checkAvailableQuests(playerLevel: num) -> list<Quest> {
+        list<Quest> mut available = [];
+        for quest in self.quests {
+            if quest.status == QuestStatus::NotStarted and playerLevel >= quest.requiredLevel {
+                available << quest;
+            }
+        }
+        return available;
+    }
+    
+    public getQuestProgress() -> string {
+        num active = len(self.getActiveQuests());
+        num completed = len(self.getCompletedQuests());
+        num total = len(self.quests);
+        
+        return "Активных: #[active], Завершено: #[completed]/#[total]";
+    }
+}
+
+class QuestReward {
+    public gold: num;
+    public experience: num;
+    public items: list<player::Item>;
+    
+    init(gold: num, experience: num) {
+        self.gold = gold;
+        self.experience = experience;
+        self.items = [];
+    }
+    
+    public addItem(item: player::Item) -> void {
+        self.items << item;
+    }
+    
+    public apply(player: &mut player::Player) -> void {
+        player.gold += self.gold;
+        player.gainExperience(self.experience);
+        
+        for item in self.items {
+            player.inventory.addItem(item);
+        }
+    }
+}
+
+class QuestLog {
+    private entries: list<QuestLogEntry>;
+    
+    init() {
+        self.entries = [];
+    }
+    
+    public addEntry(questId: num, message: string) -> void {
+        self.entries << QuestLogEntry(questId, message, getCurrentTimestamp());
+    }
+    
+    public getEntriesForQuest(questId: num) -> list<QuestLogEntry> {
+        list<QuestLogEntry> mut filtered = [];
+        for entry in self.entries {
+            if entry.questId == questId {
+                filtered << entry;
+            }
+        }
+        return filtered;
+    }
+    
+    public getAllEntries() -> list<QuestLogEntry> {
+        return self.entries;
+    }
+    
+    public clear() -> void {
+        self.entries = [];
+    }
+}
+
+class QuestLogEntry {
+    public questId: num;
+    public message: string;
+    public timestamp: num;
+    
+    init(questId: num, message: string, timestamp: num) {
+        self.questId = questId;
+        self.message = message;
+        self.timestamp = timestamp;
+    }
+}
+
+class QuestChain {
+    public chainId: num;
+    public name: string;
+    public quests: list<Quest>;
+    private currentQuestIndex: num;
+    
+    init(chainId: num, name: string) {
+        self.chainId = chainId;
+        self.name = name;
+        self.quests = [];
+        self.currentQuestIndex = 0;
+    }
+    
+    public addQuest(quest: Quest) -> void {
+        self.quests << quest;
+    }
+    
+    public getCurrentQuest() -> Quest? {
+        if self.currentQuestIndex < len(self.quests) {
+            return self.quests[self.currentQuestIndex];
+        }
+        return void;
+    }
+    
+    public advanceChain() -> bool {
+        Quest? current = self.getCurrentQuest();
+        
+        if current != void and current.isCompleted() {
+            self.currentQuestIndex += 1;
+            
+            Quest? next = self.getCurrentQuest();
+            if next != void {
+                next.start();
+                outln("Следующий квест в цепочке: " + next.name);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    public isChainCompleted() -> bool {
+        return self.currentQuestIndex >= len(self.quests);
+    }
+    
+    public getProgress() -> string {
+        return "#[self.currentQuestIndex]/#[len(self.quests)]";
+    }
+}
+
+local getCurrentTimestamp() -> num {
+    return 1234567890;
+}

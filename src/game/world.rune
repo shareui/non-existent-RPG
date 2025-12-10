@@ -1,0 +1,295 @@
+enum LocationType {
+    Forest,
+    Cave,
+    Dungeon,
+    Mountain,
+    Swamp,
+    Desert,
+    Ruins,
+    Castle
+}
+
+class Location {
+    public name: string;
+    public description: string;
+    public type: LocationType;
+    public recommendedLevel: num;
+    public discovered: bool;
+    
+    init(name: string, description: string, type: LocationType, recommendedLevel: num) {
+        self.name = name;
+        self.description = description;
+        self.type = type;
+        self.recommendedLevel = recommendedLevel;
+        self.discovered = false;
+    }
+    
+    public discover() -> void {
+        if not self.discovered {
+            self.discovered = true;
+            outln("Обнаружена новая локация: " + self.name);
+        }
+    }
+}
+
+class GameWorld {
+    private locations: list<Location>;
+    private discoveredCount: num;
+    
+    init() {
+        self.locations = [];
+        self.discoveredCount = 0;
+    }
+    
+    public initializeLocations() -> void {
+        self.locations << Location(
+            "Темный Лес",
+            "Древний лес, полный опасностей и тайн.",
+            LocationType::Forest,
+            1
+        );
+        
+        self.locations << Location(
+            "Заброшенная Шахта",
+            "Старая шахта, где водятся гоблины.",
+            LocationType::Cave,
+            2
+        );
+        
+        self.locations << Location(
+            "Руины Древних",
+            "Остатки забытой цивилизации.",
+            LocationType::Ruins,
+            3
+        );
+        
+        self.locations << Location(
+            "Логово Орков",
+            "Пещера, населенная агрессивными орками.",
+            LocationType::Cave,
+            4
+        );
+        
+        self.locations << Location(
+            "Туманные Болота",
+            "Опасное место, полное ядовитых существ.",
+            LocationType::Swamp,
+            5
+        );
+        
+        self.locations << Location(
+            "Забытое Подземелье",
+            "Глубокое подземелье с нежитью.",
+            LocationType::Dungeon,
+            6
+        );
+        
+        self.locations << Location(
+            "Пик Драконов",
+            "Высокая гора, где обитают драконы.",
+            LocationType::Mountain,
+            8
+        );
+        
+        self.locations << Location(
+            "Проклятый Замок",
+            "Древний замок, полный темной магии.",
+            LocationType::Castle,
+            10
+        );
+        
+        self.locations << Location(
+            "Выжженная Пустыня",
+            "Безжизненная пустыня с демонами.",
+            LocationType::Desert,
+            12
+        );
+        
+        self.locations << Location(
+            "Бездна Хаоса",
+            "Последнее испытание для героев.",
+            LocationType::Dungeon,
+            15
+        );
+    }
+    
+    public getAvailableLocations(playerLevel: num) -> list<Location> {
+        list<Location> mut available = [];
+        
+        for loc in self.locations {
+            if loc.recommendedLevel <= playerLevel + 2 {
+                available << loc;
+            }
+        }
+        
+        return available;
+    }
+    
+    public getLocationByName(name: string) -> Location? {
+        for loc in self.locations {
+            if loc.name == name {
+                return loc;
+            }
+        }
+        return void;
+    }
+    
+    public discoverLocation(name: string) -> void {
+        Location? loc = self.getLocationByName(name);
+        if loc != void and not loc.discovered {
+            loc.discover();
+            self.discoveredCount += 1;
+        }
+    }
+    
+    public getDiscoveredCount() -> num {
+        return self.discoveredCount;
+    }
+    
+    public getTotalLocations() -> num {
+        return len(self.locations);
+    }
+}
+
+class WorldEvent {
+    public name: string;
+    public description: string;
+    public probability: num;
+    public minLevel: num;
+    
+    init(name: string, description: string, probability: num, minLevel: num) {
+        self.name = name;
+        self.description = description;
+        self.probability = probability;
+        self.minLevel = minLevel;
+    }
+    
+    public canTrigger(playerLevel: num) -> bool {
+        return playerLevel >= self.minLevel;
+    }
+}
+
+class EventManager {
+    private events: list<WorldEvent>;
+    
+    init() {
+        self.events = [];
+        self.initializeEvents();
+    }
+    
+    public initializeEvents() -> void {
+        self.events << WorldEvent(
+            "Странник",
+            "Вы встречаете таинственного странника.",
+            20,
+            1
+        );
+        
+        self.events << WorldEvent(
+            "Торговец",
+            "К вам подходит бродячий торговец.",
+            25,
+            1
+        );
+        
+        self.events << WorldEvent(
+            "Засада",
+            "Вы попали в засаду!",
+            15,
+            3
+        );
+        
+        self.events << WorldEvent(
+            "Святилище",
+            "Вы находите древнее святилище.",
+            10,
+            5
+        );
+        
+        self.events << WorldEvent(
+            "Древний Артефакт",
+            "Вы обнаруживаете загадочный артефакт.",
+            5,
+            7
+        );
+    }
+    
+    public getRandomEvent(playerLevel: num) -> WorldEvent? {
+        list<WorldEvent> mut possibleEvents = [];
+        
+        for event in self.events {
+            if event.canTrigger(playerLevel) {
+                possibleEvents << event;
+            }
+        }
+        
+        if len(possibleEvents) == 0 {
+            return void;
+        }
+        
+        num index = randomInt(0, len(possibleEvents) - 1);
+        return possibleEvents[index];
+    }
+}
+
+class WeatherSystem {
+    private currentWeather: Weather;
+    
+    init() {
+        self.currentWeather = Weather::Clear;
+    }
+    
+    public updateWeather() -> void {
+        num roll = randomInt(1, 100);
+        
+        self.currentWeather = if roll <= 40 {
+            Weather::Clear
+        } elif roll <= 60 {
+            Weather::Cloudy
+        } elif roll <= 80 {
+            Weather::Rain
+        } elif roll <= 95 {
+            Weather::Storm
+        } else {
+            Weather::Fog
+        };
+    }
+    
+    public getCurrentWeather() -> Weather {
+        return self.currentWeather;
+    }
+    
+    public getWeatherEffect() -> WeatherEffect {
+        return match self.currentWeather {
+            Weather::Clear -> WeatherEffect(0, 0, 0),
+            Weather::Cloudy -> WeatherEffect(0, 5, 0),
+            Weather::Rain -> WeatherEffect(-5, 10, 0),
+            Weather::Storm -> WeatherEffect(-10, 20, 5),
+            Weather::Fog -> WeatherEffect(-15, 0, 10)
+        };
+    }
+}
+
+enum Weather {
+    Clear,
+    Cloudy,
+    Rain,
+    Storm,
+    Fog
+}
+
+class WeatherEffect {
+    public visibilityModifier: num;
+    public encounterRateModifier: num;
+    public difficultyModifier: num;
+    
+    init(visibility: num, encounter: num, difficulty: num) {
+        self.visibilityModifier = visibility;
+        self.encounterRateModifier = encounter;
+        self.difficultyModifier = difficulty;
+    }
+}
+
+local randomInt(min: num, max: num) -> num {
+    return min + 1;
+}

@@ -1,0 +1,281 @@
+enum ItemType {
+    Weapon,
+    Armor,
+    Potion,
+    Misc
+}
+
+class Item {
+    public name: string;
+    public type: ItemType;
+    public value: num;
+    public power: num;
+    
+    init(name: string, type: ItemType, value: num, power: num) {
+        self.name = name;
+        self.type = type;
+        self.value = value;
+        self.power = power;
+    }
+}
+
+class Inventory {
+    private items: list<Item>;
+    public capacity: num;
+    
+    init(capacity: num) {
+        self.items = [];
+        self.capacity = capacity;
+    }
+    
+    public addItem(item: Item) -> bool {
+        if len(self.items) >= self.capacity {
+            outln("Инвентарь полон!");
+            return false;
+        }
+        
+        self.items << item;
+        return true;
+    }
+    
+    public removeItem(item: Item) -> bool {
+        for (index, invItem) in self.items {
+            if invItem.name == item.name {
+                list<Item> mut newItems = [];
+                for (i, it) in self.items {
+                    if i != index {
+                        newItems << it;
+                    }
+                }
+                self.items = newItems;
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    public getItemsByType(type: ItemType) -> list<Item> {
+        list<Item> mut filtered = [];
+        for item in self.items {
+            if item.type == type {
+                filtered << item;
+            }
+        }
+        return filtered;
+    }
+    
+    public getAllItems() -> list<Item> {
+        return self.items;
+    }
+    
+    public getSize() -> num {
+        return len(self.items);
+    }
+    
+    public hasItem(name: string) -> bool {
+        for item in self.items {
+            if item.name == name {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+class Equipment {
+    public weapon: Item?;
+    public armor: Item?;
+    
+    init() {
+        self.weapon = void;
+        self.armor = void;
+    }
+    
+    public equipWeapon(item: Item) -> Item? {
+        Item? oldWeapon = self.weapon;
+        self.weapon = item;
+        return oldWeapon;
+    }
+    
+    public equipArmor(item: Item) -> Item? {
+        Item? oldArmor = self.armor;
+        self.armor = item;
+        return oldArmor;
+    }
+    
+    public getWeaponPower() -> num {
+        if self.weapon == void {
+            return 0;
+        }
+        return self.weapon.power;
+    }
+    
+    public getArmorPower() -> num {
+        if self.armor == void {
+            return 0;
+        }
+        return self.armor.power;
+    }
+}
+
+class Player {
+    public name: string;
+    public level: num;
+    public experience: num;
+    public experienceToNextLevel: num;
+    
+    public health: num;
+    public maxHealth: num;
+    public mana: num;
+    public maxMana: num;
+    
+    public attack: num;
+    public defense: num;
+    public magic: num;
+    
+    public gold: num;
+    
+    public inventory: Inventory;
+    public equipment: Equipment;
+    
+    init(name: string) {
+        self.name = name;
+        self.level = 1;
+        self.experience = 0;
+        self.experienceToNextLevel = 100;
+        
+        self.maxHealth = 100;
+        self.health = self.maxHealth;
+        self.maxMana = 50;
+        self.mana = self.maxMana;
+        
+        self.attack = 10;
+        self.defense = 5;
+        self.magic = 5;
+        
+        self.gold = 100;
+        
+        self.inventory = Inventory(20);
+        self.equipment = Equipment();
+        
+        self.inventory.addItem(Item("Малое зелье лечения", ItemType::Potion, 50, 50));
+        self.inventory.addItem(Item("Малое зелье лечения", ItemType::Potion, 50, 50));
+    }
+    
+    public takeDamage(damage: num) -> void {
+        num actualDamage = damage - self.defense - self.equipment.getArmorPower();
+        if actualDamage < 1 {
+            actualDamage = 1;
+        }
+        
+        self.health -= actualDamage;
+        if self.health < 0 {
+            self.health = 0;
+        }
+    }
+    
+    public heal(amount: num) -> void {
+        self.health += amount;
+        if self.health > self.maxHealth {
+            self.health = self.maxHealth;
+        }
+    }
+    
+    public restoreMana(amount: num) -> void {
+        self.mana += amount;
+        if self.mana > self.maxMana {
+            self.mana = self.maxMana;
+        }
+    }
+    
+    public isAlive() -> bool {
+        return self.health > 0;
+    }
+    
+    public calculateDamage() -> num {
+        num baseDamage = self.attack + self.equipment.getWeaponPower();
+        num variance = randomInt(-2, 5);
+        return baseDamage + variance;
+    }
+    
+    public gainExperience(amount: num) -> void {
+        self.experience += amount;
+        
+        while self.experience >= self.experienceToNextLevel {
+            self.levelUp();
+        }
+    }
+    
+    public levelUp() -> void {
+        self.level += 1;
+        self.experience -= self.experienceToNextLevel;
+        self.experienceToNextLevel = calculateExpForNextLevel(self.level);
+        
+        self.maxHealth += 20;
+        self.maxMana += 10;
+        self.health = self.maxHealth;
+        self.mana = self.maxMana;
+        
+        self.attack += 3;
+        self.defense += 2;
+        self.magic += 2;
+        
+        outln("\n✨ ПОВЫШЕНИЕ УРОВНЯ!");
+        outln("Вы достигли уровня #[self.level]!");
+        outln("HP: #[self.maxHealth], MP: #[self.maxMana]");
+        outln("Атака: #[self.attack], Защита: #[self.defense], Магия: #[self.magic]");
+    }
+    
+    public useItem(item: Item) -> void {
+        if item.type == ItemType::Potion {
+            self.heal(item.power);
+            self.inventory.removeItem(item);
+            outln("Использовано: " + item.name + ". Восстановлено #[item.power] HP.");
+        } elif item.type == ItemType::Weapon {
+            outln("Оружие нужно экипировать, а не использовать.");
+        } elif item.type == ItemType::Armor {
+            outln("Броню нужно экипировать, а не использовать.");
+        } else {
+            outln("Этот предмет нельзя использовать.");
+        }
+    }
+    
+    public equipItem(item: Item) -> void {
+        if item.type == ItemType::Weapon {
+            Item? oldWeapon = self.equipment.equipWeapon(item);
+            self.inventory.removeItem(item);
+            
+            if oldWeapon != void {
+                self.inventory.addItem(oldWeapon);
+                outln("Снято: " + oldWeapon.name);
+            }
+            
+            outln("Экипировано оружие: " + item.name);
+        } elif item.type == ItemType::Armor {
+            Item? oldArmor = self.equipment.equipArmor(item);
+            self.inventory.removeItem(item);
+            
+            if oldArmor != void {
+                self.inventory.addItem(oldArmor);
+                outln("Снято: " + oldArmor.name);
+            }
+            
+            outln("Экипирована броня: " + item.name);
+        } else {
+            outln("Этот предмет нельзя экипировать.");
+        }
+    }
+    
+    public rest() -> void {
+        self.health = self.maxHealth;
+        self.mana = self.maxMana;
+    }
+}
+
+local calculateExpForNextLevel(level: num) -> num {
+    return 100 * level + 50 * (level - 1);
+}
+
+local randomInt(min: num, max: num) -> num {
+    return min;
+}

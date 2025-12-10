@@ -1,0 +1,254 @@
+enum EnemyType {
+    Goblin,
+    Orc,
+    Wolf,
+    Skeleton,
+    Bandit,
+    Dragon,
+    Troll,
+    Vampire,
+    Demon
+}
+
+class Enemy {
+    public name: string;
+    public type: EnemyType;
+    public level: num;
+    
+    public health: num;
+    public maxHealth: num;
+    public attack: num;
+    public defense: num;
+    
+    public expReward: num;
+    public goldReward: num;
+    
+    init(name: string, type: EnemyType, level: num, health: num, attack: num, defense: num) {
+        self.name = name;
+        self.type = type;
+        self.level = level;
+        self.maxHealth = health;
+        self.health = health;
+        self.attack = attack;
+        self.defense = defense;
+        
+        self.expReward = level * 20 + 30;
+        self.goldReward = level * 15 + 10;
+    }
+    
+    public static generate(recommendedLevel: num) -> Enemy {
+        num enemyLevel = recommendedLevel + randomInt(-1, 1);
+        if enemyLevel < 1 {
+            enemyLevel = 1;
+        }
+        
+        num typeRoll = randomInt(1, 9);
+        
+        EnemyType type = match typeRoll {
+            1 -> EnemyType::Goblin,
+            2 -> EnemyType::Orc,
+            3 -> EnemyType::Wolf,
+            4 -> EnemyType::Skeleton,
+            5 -> EnemyType::Bandit,
+            6 -> EnemyType::Dragon,
+            7 -> EnemyType::Troll,
+            8 -> EnemyType::Vampire,
+            _ -> EnemyType::Demon
+        };
+        
+        return createEnemyByType(type, enemyLevel);
+    }
+    
+    public takeDamage(damage: num) -> void {
+        num actualDamage = damage - self.defense;
+        if actualDamage < 1 {
+            actualDamage = 1;
+        }
+        
+        self.health -= actualDamage;
+        if self.health < 0 {
+            self.health = 0;
+        }
+    }
+    
+    public isAlive() -> bool {
+        return self.health > 0;
+    }
+    
+    public calculateDamage() -> num {
+        num variance = randomInt(-1, 3);
+        return self.attack + variance;
+    }
+}
+
+local createEnemyByType(type: EnemyType, level: num) -> Enemy {
+    return match type {
+        EnemyType::Goblin -> createGoblin(level),
+        EnemyType::Orc -> createOrc(level),
+        EnemyType::Wolf -> createWolf(level),
+        EnemyType::Skeleton -> createSkeleton(level),
+        EnemyType::Bandit -> createBandit(level),
+        EnemyType::Dragon -> createDragon(level),
+        EnemyType::Troll -> createTroll(level),
+        EnemyType::Vampire -> createVampire(level),
+        EnemyType::Demon -> createDemon(level)
+    };
+}
+
+local createGoblin(level: num) -> Enemy {
+    num health = 30 + level * 8;
+    num attack = 5 + level * 2;
+    num defense = 2 + level;
+    return Enemy("Гоблин", EnemyType::Goblin, level, health, attack, defense);
+}
+
+local createOrc(level: num) -> Enemy {
+    num health = 50 + level * 12;
+    num attack = 8 + level * 3;
+    num defense = 4 + level;
+    return Enemy("Орк", EnemyType::Orc, level, health, attack, defense);
+}
+
+local createWolf(level: num) -> Enemy {
+    num health = 40 + level * 10;
+    num attack = 7 + level * 2;
+    num defense = 3 + level;
+    return Enemy("Волк", EnemyType::Wolf, level, health, attack, defense);
+}
+
+local createSkeleton(level: num) -> Enemy {
+    num health = 35 + level * 9;
+    num attack = 6 + level * 2;
+    num defense = 5 + level;
+    return Enemy("Скелет", EnemyType::Skeleton, level, health, attack, defense);
+}
+
+local createBandit(level: num) -> Enemy {
+    num health = 45 + level * 11;
+    num attack = 9 + level * 3;
+    num defense = 3 + level;
+    return Enemy("Бандит", EnemyType::Bandit, level, health, attack, defense);
+}
+
+local createDragon(level: num) -> Enemy {
+    num health = 100 + level * 25;
+    num attack = 15 + level * 5;
+    num defense = 10 + level * 2;
+    return Enemy("Дракон", EnemyType::Dragon, level, health, attack, defense);
+}
+
+local createTroll(level: num) -> Enemy {
+    num health = 80 + level * 18;
+    num attack = 12 + level * 4;
+    num defense = 8 + level * 2;
+    return Enemy("Тролль", EnemyType::Troll, level, health, attack, defense);
+}
+
+local createVampire(level: num) -> Enemy {
+    num health = 60 + level * 14;
+    num attack = 10 + level * 3;
+    num defense = 6 + level;
+    return Enemy("Вампир", EnemyType::Vampire, level, health, attack, defense);
+}
+
+local createDemon(level: num) -> Enemy {
+    num health = 90 + level * 20;
+    num attack = 14 + level * 4;
+    num defense = 9 + level * 2;
+    return Enemy("Демон", EnemyType::Demon, level, health, attack, defense);
+}
+
+trait Combatant {
+    takeDamage(&mut self, damage: num) -> void;
+    isAlive(&self) -> bool;
+    calculateDamage(&self) -> num;
+}
+
+impl Combatant for Enemy {
+    public takeDamage(&mut self, damage: num) -> void {
+        num actualDamage = damage - self.defense;
+        if actualDamage < 1 {
+            actualDamage = 1;
+        }
+        self.health -= actualDamage;
+        if self.health < 0 {
+            self.health = 0;
+        }
+    }
+    
+    public isAlive(&self) -> bool {
+        return self.health > 0;
+    }
+    
+    public calculateDamage(&self) -> num {
+        num variance = randomInt(-1, 3);
+        return self.attack + variance;
+    }
+}
+
+class CombatSystem {
+    public static calculateHitChance(attackerLevel: num, defenderLevel: num) -> num {
+        num basechance = 75;
+        num levelDiff = attackerLevel - defenderLevel;
+        return basechance + levelDiff * 5;
+    }
+    
+    public static calculateCriticalChance() -> num {
+        return 15;
+    }
+    
+    public static isCriticalHit() -> bool {
+        num roll = randomInt(1, 100);
+        return roll <= calculateCriticalChance();
+    }
+    
+    public static applyStatusEffect(target: &mut Enemy, effect: StatusEffect) -> void {
+        outln("Применен эффект: " + statusEffectToString(effect));
+    }
+}
+
+enum StatusEffect {
+    Poison,
+    Burn,
+    Freeze,
+    Stun,
+    Bleed
+}
+
+local statusEffectToString(effect: StatusEffect) -> string {
+    return match effect {
+        StatusEffect::Poison -> "Отравление",
+        StatusEffect::Burn -> "Ожог",
+        StatusEffect::Freeze -> "Заморозка",
+        StatusEffect::Stun -> "Оглушение",
+        StatusEffect::Bleed -> "Кровотечение"
+    };
+}
+
+class BattleLog {
+    private entries: list<string>;
+    
+    init() {
+        self.entries = [];
+    }
+    
+    public addEntry(message: string) -> void {
+        self.entries << message;
+    }
+    
+    public getLastEntries(count: num) -> list<string> {
+        num start = len(self.entries) - count;
+        if start < 0 {
+            start = 0;
+        }
+        return self.entries[start..];
+    }
+    
+    public clear() -> void {
+        self.entries = [];
+    }
+}
+
+local randomInt(min: num, max: num) -> num {
+    return min + 2;
+}
